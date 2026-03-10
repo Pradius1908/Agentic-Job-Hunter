@@ -48,40 +48,40 @@ def make_dumb_agent():
     return agent
 
 def refine_result(result):
-    if result["structured_response"].site == None:
+    if result.site == None:
         site_name = ["indeed", "linkedin", "zip_recruiter", "google", "glassdoor", "bayt", "naukri"]
     else:
-        site_name = result["structured_response"].site
+        site_name = result.site
 
-    if result["structured_response"].search_term == None:
+    if result.search_term == None:
         search_term = "engineer"
     else:
-        search_term = result["structured_response"].search_term
+        search_term = result.search_term
 
-    if result["structured_response"].google_search_term == None:
+    if result.google_search_term == None:
         google_search_term = "engineer jobs in San Francisco, since yesterday"
     else:
-        google_search_term = result["structured_response"].google_search_term
+        google_search_term = result.google_search_term
 
-    if result["structured_response"].location == None:
+    if result.location == None:
         location = "Bengaluru, Karnataka"
     else:
-        location = result["structured_response"].location
+        location = result.location
 
-    if result["structured_response"].hours_old == None:
+    if result.hours_old == None:
         hours_old = 72
     else:
-        hours_old = result["structured_response"].hours_old
+        hours_old = result.hours_old
 
-    if result["structured_response"].results_wanted == None:
+    if result.results_wanted == None:
         results_wanted = 1
     else:
-        results_wanted = result["structured_response"].results_wanted
+        results_wanted = result.results_wanted
 
-    if result["structured_response"].country_indeed == None:
+    if result.country_indeed == None:
         country_indeed = "India"
     else:
-        country_indeed = result["structured_response"].country_indeed
+        country_indeed = result.country_indeed
     
     return site_name, search_term, google_search_term, location, hours_old, results_wanted, country_indeed
 
@@ -99,5 +99,6 @@ def get_jobs(site_name, search_term, google_search_term, location, results_wante
         # proxies=["208.195.175.46:65095", "208.195.175.45:65095", "localhost"],
     )
     print(f"Found {len(jobs)} jobs")
-    print(jobs.head())
+    #print(jobs.head())
+    print(jobs)
     jobs.to_csv("jobs.csv", quoting=csv.QUOTE_NONNUMERIC, escapechar="\\", index=False) # to_excel
