@@ -2,16 +2,16 @@ import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
-#from JobspyFuncs import make_agent, make_dumb_agent, refine_result, get_jobs, chat_history, dumb_llm
-#from ApifyFuncs import client, indeedToJSON, naukriToJSON
+from JobspyFuncs import make_agent, make_dumb_agent, refine_result, get_jobs, chat_history, dumb_llm
+from ApifyFuncs import client, indeedToJSON, naukriToJSON
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-#from math import ceil
+from math import ceil
 from typing import Annotated, Literal
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
-#from JobspyFuncs import JobsInfo
+from JobspyFuncs import JobsInfo
 
 load_dotenv()
 
@@ -114,7 +114,6 @@ def job_router(state: State):
     return {"next": "end"}
 
 def help_agent(state: State):
-    last_message = state["messages"][-1]
     messages = [
         {"role": "system",
          "content": """You are an agent who answers questions related to jobs.
@@ -135,7 +134,30 @@ def help_agent(state: State):
 
 def run_scrapers(state: State):
     print("REQUIRED JOBS TO BE SCRAPED.")
+    struct_out_llm = llm.with_structured_output(JobsInfo)
+    messages = [
+        {"role": "system",
+         "content": """Pick out the following fields from the input string.
+                        site(optional): The job site to search for jobs on
+                        search_term(optional): The post for which to search for jobs
+                        google_search_term(optional): A string that contains post, location and time, used to search on Google Jobs
+                        location(optional): The location to search for jobs in
+                        results_wanted(optional): The number of results to return
+                        hours_old(optional): The number of hours to search for jobs in the past
+                        country_indeed(optional): The country to search for jobs in"""
+        },
+        {
+            "role": "user",
+            "content": str(chat_history)
+        }
+    ]
+    result = struct_out_llm.invoke(messages)
+    print(result)
+    site_name, search_term, google_search_term, location, hours_old, results_wanted, country_indeed = refine_result(result)
+    print(f"site_name = {site_name}, search_term = {search_term}, google_search_term = {google_search_term}, location = {location}, hours_old = {hours_old}, results_wanted = {results_wanted}, country_indeed = {country_indeed}")
+    get_jobs(site_name, search_term, google_search_term, location, hours_old, results_wanted, country_indeed)
     chat_history.append(AIMessage(content = "Required jobs were scraped."))
+
 
 graph_builder = StateGraph(State)
 
