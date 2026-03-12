@@ -25,6 +25,7 @@ llm = ChatGoogleGenerativeAI (
     model = "gemini-2.5-flash", google_api_key = GEMINI_API_KEY
 )
 """
+
 llm = ChatGroq(
     model="openai/gpt-oss-20b",
     api_key=GROQ_API_KEY,
@@ -40,6 +41,12 @@ class YesNoClassifier(BaseModel):
     message_type: Literal["yes", "no"] = Field(
         ...,
         description="Classify if the user wants to go ahead with the job search with the existing parameters or not."
+    )
+
+class HelpClassifier(BaseModel):
+    message_type: Literal["general", "database"] = Field(
+        ...,
+        description="Classify if the user has a general query or a query about previously searched jobs."
     )
 
 class State(TypedDict):
@@ -113,10 +120,30 @@ def job_router(state: State):
         return {"next": "scrape"}
     return {"next": "end"}
 
+def classify_help(state: State):
+    last_message = state["messages"][-1]
+    classifier_llm = llm.with_structured_output(HelpClassifier)
+    result = classifier_llm.invoke([
+        {
+            "role": "system",
+            "content": """Classify the user message as either:
+                        - 'general': if the user is asking for general details or opinions that do not need previously searched job data
+                        - 'help': if the user is asking about previously searched job data"""
+        },
+        {"role": "user", "content": last_message.content}
+    ])
+    return {"message_type": result.message_type}
+
+def help_router(state: State):
+    message_type = state.get("message_type", "general")
+    if message_type == "database":
+        return {"next": "database"}
+    return {"next": "general"}
+
 def help_agent(state: State):
     messages = [
         {"role": "system",
-         "content": """You are an agent who answers questions related to jobs.
+         "content": """You are an agent who answers general questions related to jobs.
                         If you are required to give an opinion, provide clear, concise opinions based on evidence.
                         Do not tell the user to follow any specific career path, but you can mention the best options for them.
                         If asked about the jobs themselves, rely only on information given to you and provide clear facts."""
@@ -158,6 +185,30 @@ def run_scrapers(state: State):
     get_jobs(site_name, search_term, google_search_term, location, hours_old, results_wanted, country_indeed)
     chat_history.append(AIMessage(content = "Required jobs were scraped."))
 
+def get_data_from_db(state: State):
+    print("GET DATA FROM DATABASE")
+    
+    # Here, we need code to get the data from database.
+    # Then, replace "DATA FROM DATABASE" with the info you just got from the db.
+
+    chat_history.append(AIMessage(content = "DATA FROM DATABASE"))
+    messages = [
+        {"role": "system",
+         "content": """You are an agent who answers questions related to jobs that the user was previously interested in.
+                        If the user wants details about previously searched jobs, give concise and clear facts.
+                        If the user asks for your opinion, rely on real evidence and do not strongly suggest anything.
+                        If asked about the jobs themselves, rely only on information given to you and provide clear facts."""
+        },
+        {
+            "role": "user",
+            "content": str(chat_history)
+        }
+    ]
+    reply = llm.invoke(messages)
+    chat_history.append(AIMessage(content = reply.content))
+    print(reply.content)
+    return {"messages": [{"role": "assistant", "content": reply.content}]}
+
 
 graph_builder = StateGraph(State)
 
@@ -167,6 +218,9 @@ graph_builder.add_node("getjobs", getjobs_agent)
 graph_builder.add_node("help", help_agent)
 graph_builder.add_node("yesnoclassifier", yes_or_no)
 graph_builder.add_node("jobrouter", job_router)
+graph_builder.add_node("helpclassifier", classify_help)
+graph_builder.add_node("helprouter", help_router)
+graph_builder.add_node("dbhelp", get_data_from_db)
 graph_builder.add_node("runscrapers", run_scrapers)
 
 graph_builder.add_edge(START, "classifier")
@@ -175,7 +229,15 @@ graph_builder.add_edge("classifier", "router")
 graph_builder.add_conditional_edges(
     "router",
     lambda state: state.get("next"),
-    {"getjobs": "getjobs", "help": "help"}
+    {"getjobs": "getjobs", "help": "helpclassifier"}
+)
+
+graph_builder.add_edge("helpclassifier", "helprouter")
+
+graph_builder.add_conditional_edges(
+    "helprouter",
+    lambda state: state.get("next"),
+    {"general": "help", "database": "dbhelp"}
 )
 
 graph_builder.add_edge("getjobs", "yesnoclassifier")
@@ -189,6 +251,7 @@ graph_builder.add_conditional_edges(
 
 graph_builder.add_edge("runscrapers", END)
 graph_builder.add_edge("help", END)
+graph_builder.add_edge("dbhelp", END)
 
 graph = graph_builder.compile()
 
