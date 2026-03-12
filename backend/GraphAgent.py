@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
-from JobspyFuncs import JobsInfo
+from JobspyFuncs import JobsInfo, SearchFields
 
 load_dotenv()
 
@@ -187,8 +187,31 @@ def run_scrapers(state: State):
 
 def get_data_from_db(state: State):
     print("GET DATA FROM DATABASE")
+    struct_out_llm = llm.with_structured_output(SearchFields)
+    messages = [
+        {"role": "system",
+         "content": """Pick out the fields from the input string that are relevant to the user's query.
+                        id(optional): The job IDs the user is asking about
+                        site(optional): The job websites that the user is asking about
+                        job_url(optional): The job URLs the user is asking about
+                        job_url_direct(optional): The direct URLs the user is asking about
+                        position(optional): The job positions the user is asking about
+                        company(optional): The job companies that the user is asking about
+                        location(optional): The locations that the user is asking about
+                        date_posted(optional): The job posting dates the user is asking about
+                        job_type(optional): The types of jobs the user is asking about"""
+        },
+        {
+            "role": "user",
+            "content": str(chat_history)
+        }
+    ]
+    result = struct_out_llm.invoke(messages)
     
-    # Here, we need code to get the data from database.
+    # 'result' is going to get the required search fields to search the database from the user's query in a structured format.
+    # (Run the program and ask a question related to previous searches to make the agent come to this section.)
+    # Here, use the class called 'result' and write code to get the data from database.
+    # The declaration of the class (class name is SearchFields) is present in JobspyFuncs.py.
     # Then, replace "DATA FROM DATABASE" with the info you just got from the db.
 
     chat_history.append(AIMessage(content = "DATA FROM DATABASE"))
