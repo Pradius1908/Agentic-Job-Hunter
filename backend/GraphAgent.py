@@ -207,6 +207,7 @@ def get_data_from_db(state: State):
         }
     ]
     result = struct_out_llm.invoke(messages)
+    print(result) # COMMENT THIS OUT LATER, ONLY FOR TESTING
     
     # 'result' is going to get the required search fields to search the database from the user's query in a structured format.
     # (Run the program and ask a question related to previous searches to make the agent come to this section.)
