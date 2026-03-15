@@ -12,6 +12,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
 from JobspyFuncs import JobsInfo, SearchFields
+from database import get_job_by_whatever, get_cached_jobs
 
 load_dotenv()
 
@@ -209,13 +210,31 @@ def get_data_from_db(state: State):
     result = struct_out_llm.invoke(messages)
     print(result) # COMMENT THIS OUT LATER, ONLY FOR TESTING
     
-    # 'result' is going to get the required search fields to search the database from the user's query in a structured format.
-    # (Run the program and ask a question related to previous searches to make the agent come to this section.)
-    # Here, use the class called 'result' and write code to get the data from database.
-    # The declaration of the class (class name is SearchFields) is present in JobspyFuncs.py.
-    # Then, replace "DATA FROM DATABASE" with the info you just got from the db.
+    db_results=[]
 
-    chat_history.append(AIMessage(content = "DATA FROM DATABASE"))
+    if result.position and result.location:
+        db_results=get_cached_jobs(result.position, result.location)
+    elif result.position:
+        db_results=get_job_by_whatever("position", result.position)
+    elif result.location:
+        db_results=get_job_by_whatever("location", result.location) 
+    elif result.site:
+        db_results=get_job_by_whatever("site", result.site)
+    elif result.id:
+        db_results=[get_job_by_whatever("id", result.id)]
+
+    if not db_results or (isinstance(db_results, list) and not any(db_results)):
+        db_data_string= "No jobs found in the database matching the query."
+    else:
+        jobs_list = []
+        if not isinstance(db_results, list):
+            db_results = [db_results]
+        for job in db_results:
+            if job:
+                jobs_list.append(
+                    f"- Title: {job.position} | Company: {job.company} | Location: {job.location} | Posted: {job.date_posted} | URL: {job.job_url}"
+                )
+    chat_history.append(AIMessage(content = f"Database results:\n{db_data_string}\n\n"))
     messages = [
         {"role": "system",
          "content": """You are an agent who answers questions related to jobs that the user was previously interested in.
